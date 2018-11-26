@@ -1,0 +1,360 @@
+#include "opencv2/core.hpp"
+#include "opencv2/opencv.hpp"
+
+using namespace std;
+using namespace cv;
+
+static Mat past_im;
+//----------------------------------------------------------
+// Recombinate image quaters
+//----------------------------------------------------------
+void Recomb(Mat &src, Mat &dst)
+{
+	int cx = src.cols >> 1;
+	int cy = src.rows >> 1;
+	Mat tmp;
+	tmp.create(src.size(), src.type());
+	src(Rect(0, 0, cx, cy)).copyTo(tmp(Rect(cx, cy, cx, cy)));
+	src(Rect(cx, cy, cx, cy)).copyTo(tmp(Rect(0, 0, cx, cy)));
+	src(Rect(cx, 0, cx, cy)).copyTo(tmp(Rect(0, cy, cx, cy)));
+	src(Rect(0, cy, cx, cy)).copyTo(tmp(Rect(cx, 0, cx, cy)));
+	dst = tmp;
+}
+//----------------------------------------------------------
+// 2D Forward FFT
+//----------------------------------------------------------
+void ForwardFFT(Mat &Src, Mat *FImg, bool do_recomb = true)
+{
+	int M = getOptimalDFTSize(Src.rows);
+	int N = getOptimalDFTSize(Src.cols);
+	Mat padded;
+	copyMakeBorder(Src, padded, 0, M - Src.rows, 0, N - Src.cols, BORDER_CONSTANT, Scalar::all(0));
+	Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+	Mat complexImg;
+	merge(planes, 2, complexImg);
+	dft(complexImg, complexImg);
+	split(complexImg, planes);
+	planes[0] = planes[0](Rect(0, 0, planes[0].cols & -2, planes[0].rows & -2));
+	planes[1] = planes[1](Rect(0, 0, planes[1].cols & -2, planes[1].rows & -2));
+	if (do_recomb)
+	{
+		Recomb(planes[0], planes[0]);
+		Recomb(planes[1], planes[1]);
+	}
+	planes[0] /= float(M*N);
+	planes[1] /= float(M*N);
+	FImg[0] = planes[0].clone();
+	FImg[1] = planes[1].clone();
+}
+//----------------------------------------------------------
+// 2D inverse FFT
+//----------------------------------------------------------
+void InverseFFT(Mat *FImg, Mat &Dst, bool do_recomb = true)
+{
+	if (do_recomb)
+	{
+		Recomb(FImg[0], FImg[0]);
+		Recomb(FImg[1], FImg[1]);
+	}
+	Mat complexImg;
+	merge(FImg, 2, complexImg);
+	idft(complexImg, complexImg);
+	split(complexImg, FImg);
+	Dst = FImg[0].clone();
+}
+//-----------------------------------------------------------------------------------------------------
+//
+//-----------------------------------------------------------------------------------------------------
+void highpass(Size sz, Mat& dst)
+{
+	Mat a = Mat(sz.height, 1, CV_32FC1);
+	Mat b = Mat(1, sz.width, CV_32FC1);
+
+	float step_y = CV_PI / sz.height;
+	float val = -CV_PI * 0.5;
+
+	for (int i = 0; i < sz.height; ++i)
+	{
+		a.at<float>(i) = cos(val);
+		val += step_y;
+	}
+
+	val = -CV_PI * 0.5;
+	float step_x = CV_PI / sz.width;
+	for (int i = 0; i < sz.width; ++i)
+	{
+		b.at<float>(i) = cos(val);
+		val += step_x;
+	}
+
+	Mat tmp = a * b;
+	dst = (1.0 - tmp).mul(2.0 - tmp);
+}
+//-----------------------------------------------------------------------------------------------------
+//
+//-----------------------------------------------------------------------------------------------------
+float logpolar(Mat& src, Mat& dst)
+{
+	float radii = src.cols;
+	float angles = src.rows;
+	Point2f center(src.cols / 2, src.rows / 2);
+	float d = norm(Vec2f(src.cols - center.x, src.rows - center.y));
+	float log_base = pow(10.0, log10(d) / radii);
+	float d_theta = CV_PI / (float)angles;
+	float theta = CV_PI / 2.0;
+	float radius = 0;
+	Mat map_x(src.size(), CV_32FC1);
+	Mat map_y(src.size(), CV_32FC1);
+	for (int i = 0; i < angles; ++i)
+	{
+		for (int j = 0; j < radii; ++j)
+		{
+			radius = pow(log_base, float(j));
+			float x = radius * sin(theta) + center.x;
+			float y = radius * cos(theta) + center.y;
+			map_x.at<float>(i, j) = x;
+			map_y.at<float>(i, j) = y;
+		}
+		theta += d_theta;
+	}
+	remap(src, dst, map_x, map_y, CV_INTER_LINEAR, BORDER_CONSTANT, Scalar(0, 0, 0));
+	return log_base;
+}
+//-----------------------------------------------------------------------------------------------------
+// As input we need equal sized images, with the same aspect ratio,
+// scale difference should not exceed 1.8 times.
+//-----------------------------------------------------------------------------------------------------
+Mat LogPolarFFTTemplateMatch(Mat im0, Mat im1, double canny_threshold1, double canny_threshold2, int idx)
+{
+        Mat warp_Mat = Mat::zeros(Size(3, 2), CV_64FC1);
+        
+        // Accept 1 or 3 channel CV_8U, CV_32F or CV_64F images.
+        CV_Assert((im0.type() == CV_8UC1) || (im0.type() == CV_8UC3) ||
+            (im0.type() == CV_32FC1) || (im0.type() == CV_32FC3) ||
+            (im0.type() == CV_64FC1) || (im0.type() == CV_64FC3));
+    
+        CV_Assert(im0.rows == im1.rows && im0.cols == im1.cols);
+    
+        CV_Assert(im0.channels() == 1 || im0.channels() == 3 || im0.channels() == 4);
+    
+        CV_Assert(im1.channels() == 1 || im1.channels() == 3 || im1.channels() == 4);
+
+        if (im0.channels() == 3)
+        {
+            cvtColor(im0, im0, cv::COLOR_BGR2GRAY);
+        }
+    
+        if (im0.channels() == 4)
+        {
+            cvtColor(im0, im0, cv::COLOR_BGRA2GRAY);
+        }
+    
+        if (im1.channels() == 3)
+        {
+            cvtColor(im1, im1, cv::COLOR_BGR2GRAY);
+        }
+    
+        if (im1.channels() == 4)
+        {
+            cvtColor(im1, im1, cv::COLOR_BGRA2GRAY);
+        }
+    
+        if (im0.type() == CV_32FC1)
+        {
+           im0.convertTo(im0, CV_8UC1, 255.0);
+        }
+    
+        if (im1.type() == CV_32FC1)
+        {
+           im1.convertTo(im1, CV_8UC1, 255.0);
+        }
+    
+        if (im0.type() == CV_64FC1)
+        {
+            im0.convertTo(im0, CV_8UC1, 255.0);
+        }
+    
+        if (im1.type() == CV_64FC1)
+        {
+            im1.convertTo(im1, CV_8UC1, 255.0);
+        }
+    
+    
+        Canny(im0, im0, canny_threshold1, canny_threshold2); // you can change this
+        Canny(im1, im1, canny_threshold1, canny_threshold2);
+        imwrite("im1.png", im1);
+        imwrite("im0.png", im0);
+    
+        vector<Vec4i>g_lines;
+        vector<Vec4i>g_lines1;
+    
+        Mat im1_c;
+        Mat im0_c;
+        
+        HoughLinesP(im0, g_lines, 5, CV_PI / 180, 100, 50, 10);
+        HoughLinesP(im1, g_lines1, 5, CV_PI / 180, 100, 50, 10);
+        cvtColor(im0, im0_c, COLOR_GRAY2BGR);
+        cvtColor(im1, im1_c, COLOR_GRAY2BGR);
+    
+        cout <<"***********"<< g_lines.size() << endl;
+        cout <<"***********"<< g_lines1.size() << endl;
+    
+    
+        for (size_t i = 0; i < g_lines.size(); ++i)
+        {
+            Vec4i l = g_lines[i];
+            line(im1_c, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(23, 180, 55), 1, CV_AA);
+        }
+        for (size_t i = 0; i < g_lines.size(); ++i)
+        {
+            Vec4i l = g_lines1[i];
+            line(im0_c, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(23, 180, 55), 1, CV_AA);
+        }
+    
+        imwrite("HLim1.png", im1_c);
+        imwrite("HLim0.png", im0_c);
+    
+        vector<double> lines_k;
+        vector<double> lines_sita;
+        for (size_t i = 0; i < g_lines.size(); ++i)
+        {
+            Vec4i l = g_lines[i];
+            if(l[2] == l[0])continue;
+            double k = (double)(l[3] - l[1]) / (double)(l[2] - l[0]);
+            double sita = atan(k);
+            lines_sita.push_back(sita);
+            lines_k.push_back(k);
+        }
+    
+        cout << "-------------------------------------"<<endl;
+    
+    
+        vector<double> lines_k1;
+        vector<double> lines_sita1;
+        for (size_t i = 0; i < g_lines1.size(); ++i)
+        {
+            Vec4i l = g_lines1[i];
+            if(l[2] == l[0])continue;
+            double k = (double)(l[3] - l[1]) / (double)(l[2] - l[0]);
+            double sita = atan(k);
+            lines_sita1.push_back(sita);
+            lines_k1.push_back(k);
+        }
+    cout << "-------------------------------------"<<endl;
+    
+        int count = 0;
+        int count_max = 0;
+    
+        int count_max_id = 0;
+        int count_max_id1 = 0;
+    
+        vector<int> count_line;
+        vector<int> count_line1;
+        double k = 0.0;
+        double k1 = 0.0;
+        if(lines_sita.size()>0 && lines_sita1.size()>0)
+        {
+            for (int i = 0; i < lines_sita.size(); i++)
+            {
+                for (int j = 0; j < lines_sita.size(); j++)
+                {
+                    if(abs(lines_sita[i] - lines_sita[j]) < 0.01)
+                        count++;
+                }
+                count_line.push_back(count);
+                if (count > count_max)
+                {
+                    count_max = count;
+                    count_max_id = i;
+                }
+                count = 0;
+            }
+            
+            for (int i = 0; i < lines_sita.size(); ++i)
+            {
+                if(abs(lines_sita[i] - lines_sita[count_max_id]) < 0.01)
+                {
+                    k += lines_k[i]/(double)count_max;
+                }
+                
+            }
+    
+    
+        
+            for (int i = 0; i < lines_sita1.size(); i++)
+            {
+                for (int j = 0; j < lines_sita1.size(); j++)
+                {
+                    if(abs(lines_sita1[i] - lines_sita1[j]) < 0.01)
+                    count++;
+                }
+                count_line1.push_back(count);
+                if (count > count_max)
+                {
+                    count_max = count;
+                    count_max_id1 = i;
+                }
+                cout<< count << endl;
+                count = 0;
+            }
+            for (int i = 0; i < lines_sita1.size(); ++i)
+            {
+                if(abs(lines_sita1[i] - lines_sita1[count_max_id1]) < 0.01)
+                {
+                    cout << i << endl;
+                    k1 += lines_k1[i]/(double)count_max;
+                }
+                
+            }
+            cout << count_max <<"-----------"<<count_max_id<<"=="<< k1 <<endl;
+        }
+        
+        
+            
+    cout << "-------------------------------------"<<endl;
+    
+        double tan_a = abs(k - k1)/abs(1 + k*k1);
+        double cos_a = sqrt(1.0/(1+tan_a*tan_a));
+        double sin_a = cos_a * tan_a;
+        cout << "###########"<< k << endl;
+        cout << "###########"<< k1 << endl;
+        cout << "#####tan_a######"<< tan_a << endl;
+        cout << "#####cos_a######"<< cos_a << endl;
+        cout << "#####sin_a######"<< sin_a << endl;
+    
+        Mat rotate_mat = Mat(Size(3, 2), CV_64FC1);
+        // rotate and scale
+        Mat im1_rs;
+    
+        rotate_mat.at<double>(0, 0) = cos_a;
+        rotate_mat.at<double>(0, 1) = sin_a;
+        rotate_mat.at<double>(1, 0) = sin_a;
+        rotate_mat.at<double>(1, 1) = cos_a;
+        rotate_mat.at<double>(0, 2) = 0;
+        rotate_mat.at<double>(1, 2) = 0;
+    cout << rotate_mat <<endl;
+        warpAffine(im1, im1_rs, rotate_mat, im1.size());
+
+        im0.convertTo(im0, CV_32FC1, 1.0 / 255.0);
+        im1_rs.convertTo(im1_rs, CV_32FC1, 1.0 / 255.0);
+    
+        Point2d tr = cv::phaseCorrelate(im1_rs, im0);
+
+    
+    
+    
+        // compute rotated rectangle parameters
+        Mat mov_mat = Mat::zeros(Size(3, 2), CV_64FC1);
+        
+        warp_Mat.at<double>(0, 0) = cos_a;
+        warp_Mat.at<double>(0, 1) = sin_a;
+        warp_Mat.at<double>(1, 0) = sin_a;
+        warp_Mat.at<double>(1, 1) = cos_a;
+    
+        warp_Mat.at<double>(0, 2) = tr.x;
+        warp_Mat.at<double>(1, 2) = tr.y;
+
+    
+        return warp_Mat;
+
+}
