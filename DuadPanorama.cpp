@@ -146,12 +146,18 @@ void get_Univariate_matrix(void)
 		Mat img_r = imread("B.bmp",0);
 		vector<Point2f> corners;
 		vector<Point2f> corners_r;
+        vector<Point2f> corner_tmp;
 		cout << findChessboardCorners(img, CALIBRATOR_BOARD_SIZE, corners)<< endl;
 
 		cout << findChessboardCorners(img_r, CALIBRATOR_BOARD_SIZE, corners_r) << endl;
 		TermCriteria criteria = TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 40, 0.1);
 		cornerSubPix(img, corners, Size(5,5), Size(-1,-1), criteria);
 		cornerSubPix(img_r, corners_r, Size(5,5), Size(-1, -1), criteria);
+        for(int i = corners_r.size() - 1; i > -1; i--)
+        {
+            corner_tmp.push_back(corners_r[i]);
+        }
+        corners_r = corner_tmp;
 #else
 	
 		ifstream myfile("F1F.txt");
@@ -686,8 +692,8 @@ int main(int argc, char **argv)
 	cout << "步骤4, 开始处理图像序列..." << endl;
 	int idx0 = 0; //FR
 
-	VideoCapture front_cap("4_F.mkv");   //1_F.mkv    5F.avi
-	VideoCapture rear_cap("4_B.mkv");   //1_B.mkv     5B.avi
+	VideoCapture front_cap("3_F.mkv");   //1_F.mkv    5F.avi
+	VideoCapture rear_cap("3_B.mkv");   //1_B.mkv     5B.avi
 
 	/*-----------------------------------------------------------------------------------------------------------------------------------------------------*/
 	/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -695,8 +701,8 @@ int main(int argc, char **argv)
 	if (front_cap.isOpened() && rear_cap.isOpened())
 	{
 		
-		front_cap >> rearimage;
-		rear_cap >> frontimage;
+		front_cap >> frontimage;
+		rear_cap >> rearimage;
 
 		Mat front_trs(front_image.size(), CV_8UC4, Scalar::all(0));
 		Mat rear_trs(rear_image.size(), CV_8UC4, Scalar::all(0));
@@ -716,7 +722,7 @@ int main(int argc, char **argv)
 
                     clock_t FT_st = clock();
                     
-					output = av_merge_image(front_image, rear_image, 0);
+					output = av_merge_image(front_image, rear_image, 1);
 
                     if(DEBUG_MSG)
                         imwrite("debug/output.png", output);
@@ -752,8 +758,8 @@ int main(int argc, char **argv)
 					
 				}
 			}
-			front_cap >> rearimage;
-			rear_cap >> frontimage;
+			front_cap >> frontimage;
+			rear_cap >> rearimage;
 			
 		}
 		clock_t total_end = clock();
