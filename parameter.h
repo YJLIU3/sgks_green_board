@@ -3,10 +3,10 @@
 using namespace std;
 using namespace cv;
 
-#define DEBUG_MSG true
+#define DEBUG_MSG false
 
 
-const Size CALIBRATOR_BOARD_SIZE = Size(10, 4);
+const Size CALIBRATOR_BOARD_SIZE = Size(14, 10);
 
 const Size BOARD_REAL_SIZE = Size(20, 20);
 
@@ -24,9 +24,9 @@ const Size BOARD_REAL_SIZE = Size(20, 20);
 #define offsize_xx 60 + offsize_a
 #define offsize_yy space_y
 
-#define grid_size 15
-#define grid_rows 18
-#define grid_cols 9
+#define grid_size 20
+#define grid_rows 14
+#define grid_cols 10
 #define dstImg_rows grid_size*(grid_rows - 1)
 #define dstImg_cols grid_size*(grid_cols - 1)
 #define image_size Size(dstImg_rows, dstImg_cols)
@@ -35,6 +35,5 @@ const Size BOARD_REAL_SIZE = Size(20, 20);
 
 
 const Size WEIGHT_BIGSIZE = Size(space_x, space_y);
-const Size WEIGHT_BIGSIZE_AVI = Size(1280, 720); 
 #define timeRatioThrdd 100.0
 

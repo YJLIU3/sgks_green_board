@@ -14,7 +14,7 @@ static Mat rear_now;
 static Mat matrix_bypast[25];
 int bypast_cont = 0;
 
-#define grid_size 40
+#define grid_size 20
 #define min_match 5
 #define pi 3.1415926
 static Mat imMaskS;

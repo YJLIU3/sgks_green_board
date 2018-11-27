@@ -142,13 +142,13 @@ Mat result_r[grid_rows*grid_cols];
 void get_Univariate_matrix(void)
 {
 #if 1
-		Mat img = imread("F.jpg",0);
-		Mat img_r = imread("B.jpg",0);
+		Mat img = imread("F.bmp",0);
+		Mat img_r = imread("B.bmp",0);
 		vector<Point2f> corners;
 		vector<Point2f> corners_r;
-		findChessboardCorners(img, CALIBRATOR_BOARD_SIZE, corners, cv::CALIB_CB_ADAPTIVE_THRESH | cv::CALIB_CB_NORMALIZE_IMAGE);
+		cout << findChessboardCorners(img, CALIBRATOR_BOARD_SIZE, corners)<< endl;
 
-		findChessboardCorners(img_r, CALIBRATOR_BOARD_SIZE, corners_r, cv::CALIB_CB_ADAPTIVE_THRESH | cv::CALIB_CB_NORMALIZE_IMAGE);
+		cout << findChessboardCorners(img_r, CALIBRATOR_BOARD_SIZE, corners_r) << endl;
 		TermCriteria criteria = TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 40, 0.1);
 		cornerSubPix(img, corners, Size(5,5), Size(-1,-1), criteria);
 		cornerSubPix(img_r, corners_r, Size(5,5), Size(-1, -1), criteria);
@@ -570,60 +570,94 @@ int bsv_SysInit(sgks_dsp_op_mode_e dsp_op_mode)
 	mpi_init.dsp_init_param.sec2_out_sec5_off = 1;
 	return sgks_mpi_sys_Init(&mpi_init, g_mem_map_table);
 }
+void TestProc()
+{
+	Mat img;
+	unsigned int i, x, d;
+	unsigned int * p;
+	img.create(720, 1280, CV_8UC4);
+
+	bsv_SysInit(SGKS_DSP_DECODE_MODE);
+	bsv_VinInit(1920, 1080, 1920, 1080, 0, 0, VENC_FPS_25);
+	//bsv_VinInit(1920,2160,1920,1080,0,540,VENC_FPS_30);
+	bsv_PrevInit();
+	sgks_mpi_sys_Start(); //在该函数调用之前，必须初始化好Vin和Preview，否则FW无法启动；
+	bsv_VoutInit(SGKS_VO_SRC_YUV422, SGKS_VO_SRC_ENC); //初始化Vout输出，输出内容由Encoder
+													   //memset(img.datastart, i++, img.rows * img.cols * 4);
+	p = (unsigned int *)img.datastart;
+
+	cout<<(unsigned int)p<<endl;
+	
+	d = 0x000000FF;
+	for (i = 0;i<img.cols;i++)
+	{
+		if ((i & 0x7F) == 0x7F)
+			d = d << 8;
+		if (d == 0)
+			d = 0x000000FF;
+		for (x = 0;x<img.rows;x++)
+			*p++ = d;
+	}
+
+	ShowImageToLCD(img);
+//	while (1)
+//		usleep(10000);
+}
 
 
 int main(int argc, char **argv)
 {
-
-		Mat dst = Mat::zeros(480, 960, CV_8UC4);
-		Mat output( 480, 905, CV_8UC4);
-		Mat show_img;
-		show_img.create(480, 960, CV_8UC4);
-		unsigned int *pbuff = NULL;
-		unsigned int *ptr = NULL;
-		ptr = new unsigned int[nLCDWidth*nLCDHeight+1024];
-		pbuff = (unsigned int *)(((unsigned int)ptr+0x3F)&0xFFFFFFC0);
-		Mat img;
-		unsigned int i,x,d;
-		unsigned int * p;
-		img.create(720,1280,CV_8UC4);
-
-		
-		p = (unsigned int *)img.datastart;
-		d = 0x000000FF;
-		for(i = 0;i<img.rows;i++)
-		{
-			if((i&0x7F) == 0x7F)
-				d = d<<8;
-			if(d == 0)
-				d = 0x000000FF;
-			for(x = 0;x<img.cols;x++)
-				*p++ = d;
-	}
-		
-		memset(pbuff, 0, sizeof(pbuff));
-
+    TestProc();
+            Mat dst = Mat::zeros(480, 960, CV_8UC4);
+            Mat output( 480, 905, CV_8UC4);
+            Mat show_img;
+            show_img.create(480, 960, CV_8UC4);
+            unsigned int *pbuff = NULL;
+            unsigned int *ptr = NULL;
+            ptr = new unsigned int[nLCDWidth*nLCDHeight+1024];
+            pbuff = (unsigned int *)(((unsigned int)ptr+0x3F)&0xFFFFFFC0);
+            Mat img;
+            unsigned int i,x,d;
+            unsigned int * p;
+            img.create(720,1280,CV_8UC4);
+    
+            
+            p = (unsigned int *)img.datastart;
+            d = 0x000000FF;
+            for(i = 0;i<img.rows;i++)
+            {
+                if((i&0x7F) == 0x7F)
+                    d = d<<8;
+                if(d == 0)
+                    d = 0x000000FF;
+                for(x = 0;x<img.cols;x++)
+                    *p++ = d;
+        }
+            
+            memset(pbuff, 0, sizeof(pbuff));
+    
 #if 1
-		int ret = -1;
-		int count = 0,offset = 0,read_i =0;
-		int fd_sav;
-		char openfile[40], filedir[30];
-		char *filename = argv[4];
-		int uv_size=0;
-		int yuv_type = atoi(argv[2]);
-	
-		int fd = -1;
-		struct stat fstatbuf;
-		int rlen	= 0;
-		int size	= 0;
-		sgks_mpi_vdec_info_s vdec_info;
-		//frame_head_t frame_head;
-		int num = 0;
-		int pos = 0;
-		char *data_buf = (char *)sgks_mpi_Malloc(sizeof(char) * 1024 * 1024);
-
-		ShowImageToLCD(img);
+            int ret = -1;
+            int count = 0,offset = 0,read_i =0;
+            int fd_sav;
+            char openfile[40], filedir[30];
+            char *filename = argv[4];
+            int uv_size=0;
+            int yuv_type = atoi(argv[2]);
+        
+            int fd = -1;
+            struct stat fstatbuf;
+            int rlen    = 0;
+            int size    = 0;
+            sgks_mpi_vdec_info_s vdec_info;
+            //frame_head_t frame_head;
+            int num = 0;
+            int pos = 0;
+            char *data_buf = (char *)sgks_mpi_Malloc(sizeof(char) * 1024 * 1024);
+    
+            ShowImageToLCD(img);
 #endif	
+
 
 
 	
@@ -637,10 +671,10 @@ int main(int argc, char **argv)
 
 		pa.compute_merge_matrix(frontMat, rearMat, CALIBRATOR_BOARD_SIZE, offsize_xx, offsize_yy);
 
-		front_mask1 = Mat::ones(Size(255, 120), CV_8UC1);
+		front_mask1 = Mat::ones(image_size, CV_8UC1);
 		imwrite("result/融合参数/front_mask1.bmp", front_mask1);
 
-		rear_mask1 = Mat::ones(Size(255, 120), CV_8UC1);
+		rear_mask1 = Mat::ones(image_size, CV_8UC1);
 		imwrite("result/融合参数/rear_mask1.bmp", rear_mask1);
 
 		pa.preProcess(front_mask1, rear_mask1);
@@ -652,8 +686,8 @@ int main(int argc, char **argv)
 	cout << "步骤4, 开始处理图像序列..." << endl;
 	int idx0 = 0; //FR
 
-	VideoCapture front_cap("1_F.mkv");   //1_F.mkv    5F.avi
-	VideoCapture rear_cap("1_B.mkv");   //1_B.mkv     5B.avi
+	VideoCapture front_cap("4_F.mkv");   //1_F.mkv    5F.avi
+	VideoCapture rear_cap("4_B.mkv");   //1_B.mkv     5B.avi
 
 	/*-----------------------------------------------------------------------------------------------------------------------------------------------------*/
 	/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -661,8 +695,8 @@ int main(int argc, char **argv)
 	if (front_cap.isOpened() && rear_cap.isOpened())
 	{
 		
-		front_cap >> frontimage;
-		rear_cap >> rearimage;
+		front_cap >> rearimage;
+		rear_cap >> frontimage;
 
 		Mat front_trs(front_image.size(), CV_8UC4, Scalar::all(0));
 		Mat rear_trs(rear_image.size(), CV_8UC4, Scalar::all(0));
@@ -673,7 +707,7 @@ int main(int argc, char **argv)
 			cout << "image " << idx0++ << endl;
 	
 
-			if (idx0 >0 && idx0 < 20 * 500) 
+			if (idx0 >300 && idx0 < 20 * 500) 
 			{
 
 				{	
@@ -682,14 +716,16 @@ int main(int argc, char **argv)
 
                     clock_t FT_st = clock();
                     
-					output = av_merge_image(front_image, rear_image, 1);
+					output = av_merge_image(front_image, rear_image, 0);
 
+                    if(DEBUG_MSG)
+                        imwrite("debug/output.png", output);
                     clock_t FT_en = clock();
-//                    if(DEBUG_MSG)
+                    if(DEBUG_MSG)
                     cout<< "process Running time  is: " << static_cast<double>(FT_en - FT_st) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
 
 					/*--------------------------------------------------------------------------------------------------------------------------------------*/
-					if (idx0 > 0 + 1) {
+					if (idx0 > 300 + 1) {
 #if 1 	
 						Mat show(Size(900, 480), CV_8UC4, Scalar(0));
 						resize(output, output, Size(300, 480));
@@ -702,20 +738,22 @@ int main(int argc, char **argv)
 						putText(show, "Front_Image", Point(50,50), FONT_HERSHEY_COMPLEX,1,Scalar(0, 255, 255), 2, 8, 0);
 						putText(show, "Back_Image", Point(650,50), FONT_HERSHEY_COMPLEX,1,Scalar(0, 255, 255), 2, 8, 0);
 						resize(show, dst, dst.size());
+                        if(DEBUG_MSG)
+                            imwrite("debug/show.png", dst);
 						// cvtColor(dst, dst, COLOR_BGRA2BGR);
 						// abMatBGR2ARGB(dst, show_img);
+						cout <<"****-----show-------****" << endl;
 						ShowImageToLCD(dst);
-
+                        cout <<"****-----show-------****" << endl;
 #endif
-
-						/*--------------------------------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------------------------------------------------------*/
 
 					}
 					
 				}
 			}
-			front_cap >> frontimage;
-			rear_cap >> rearimage;
+			front_cap >> rearimage;
+			rear_cap >> frontimage;
 			
 		}
 		clock_t total_end = clock();
@@ -780,8 +818,8 @@ Mat av_merge_image(Mat front_buf, Mat rear_buf, bool Reversing)
 
 		pa.compute_merge_matrix(frontMat, rearMat, CALIBRATOR_BOARD_SIZE, offsize_xx, offsize_yy);
 
-		Mat front_chess = imread("F.jpg");
-		Mat rear_chess = imread("B.jpg");
+		Mat front_chess = imread("F.bmp");
+		Mat rear_chess = imread("B.bmp");
 
 		remap(front_chess, front_chess, Map_Fx, Map_Fy, INTER_LINEAR, BORDER_CONSTANT);
 		remap(rear_chess, rear_chess, Map_Rx, Map_Ry, INTER_LINEAR, BORDER_CONSTANT);
