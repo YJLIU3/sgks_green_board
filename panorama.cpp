@@ -338,7 +338,7 @@ Mat Panorama::front_process(Mat front, Mat rear)
 		imTime1 = imTime;
 
         output = ims.clone();
-        if(DEBUG_MSG)
+        if(DEBUG_MSG_IMG)
             imwrite("debug/output.png",output);
 #if 0
 
@@ -497,7 +497,7 @@ Mat Panorama::rear_process(Mat front, Mat rear)
 		imTime1 = imTime;
 
         output = ims.clone();
-        if(DEBUG_MSG)
+        if(DEBUG_MSG_IMG)
             imwrite("debug/output.png",output);
         
         clock_t warp_st6 = clock();

@@ -724,7 +724,7 @@ int main(int argc, char **argv)
                     
 					output = av_merge_image(front_image, rear_image, 1);
 
-                    if(DEBUG_MSG)
+                    if(DEBUG_MSG_IMG)
                         imwrite("debug/output.png", output);
                     clock_t FT_en = clock();
                     if(DEBUG_MSG)
@@ -744,7 +744,7 @@ int main(int argc, char **argv)
 						putText(show, "Front_Image", Point(50,50), FONT_HERSHEY_COMPLEX,1,Scalar(0, 255, 255), 2, 8, 0);
 						putText(show, "Back_Image", Point(650,50), FONT_HERSHEY_COMPLEX,1,Scalar(0, 255, 255), 2, 8, 0);
 						resize(show, dst, dst.size());
-                        if(DEBUG_MSG)
+                        if(DEBUG_MSG_IMG)
                             imwrite("debug/show.png", dst);
 						// cvtColor(dst, dst, COLOR_BGRA2BGR);
 						// abMatBGR2ARGB(dst, show_img);
@@ -786,10 +786,10 @@ Mat av_merge(Mat front_image, Mat rear_image, bool Reversing)
     	}
         
         clock_t end_process = clock();
-        out = pa.front_process(front_trs, rear_trs);
         
-        if(!DEBUG_MSG)
+        if(DEBUG_MSG)
             cout<< "###############################front process Running time  is: " << static_cast<double>(end_process - end_remap) / CLOCKS_PER_SEC * 1000 << "ms#####################" << endl;
+        out = pa.front_process(front_trs, rear_trs);
     }
     else
     {
@@ -803,10 +803,11 @@ Mat av_merge(Mat front_image, Mat rear_image, bool Reversing)
     		resize(rear_trs, rear_trs, image_size);
     	}
         
-        out = pa.rear_process(front_trs, rear_trs);
+        
         clock_t end_process = clock();
-        if(!DEBUG_MSG)
+        if(DEBUG_MSG)
             cout<< "###############################rear process Running time  is: " << static_cast<double>(end_process - end_remap) / CLOCKS_PER_SEC * 1000 << "ms#####################" << endl;
+        out = pa.rear_process(front_trs, rear_trs); 
     }	
 	return out;
 }
@@ -829,7 +830,7 @@ Mat av_merge_image(Mat front_buf, Mat rear_buf, bool Reversing)
 
 		remap(front_chess, front_chess, Map_Fx, Map_Fy, INTER_LINEAR, BORDER_CONSTANT);
 		remap(rear_chess, rear_chess, Map_Rx, Map_Ry, INTER_LINEAR, BORDER_CONSTANT);
-        if(DEBUG_MSG)
+        if(DEBUG_MSG_IMG)
         {
             imwrite("debug/F_chess.jpg", front_chess);
 		    imwrite("debug/B_chess.jpg", rear_chess);
@@ -848,7 +849,7 @@ Mat av_merge_image(Mat front_buf, Mat rear_buf, bool Reversing)
     if(!Reversing)
     {
 //        front_image.data = (unsigned char *)front_buf;
-        if(DEBUG_MSG)
+        if(DEBUG_MSG_IMG)
             imwrite("front_input.png", front_image);
         clock_t en_b = clock();
 
@@ -860,7 +861,7 @@ Mat av_merge_image(Mat front_buf, Mat rear_buf, bool Reversing)
     {
 //        rear_image.data = (unsigned char *)rear_buf;
 
-        if(DEBUG_MSG)
+        if(DEBUG_MSG_IMG)
             imwrite("rear_input.png", rear_image);
         
         clock_t en_c = clock();

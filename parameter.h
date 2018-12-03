@@ -3,8 +3,8 @@
 using namespace std;
 using namespace cv;
 
-#define DEBUG_MSG false
-
+#define DEBUG_MSG true
+#define DEBUG_MSG_IMG false
 
 const Size CALIBRATOR_BOARD_SIZE = Size(14, 10);
 
