@@ -675,6 +675,17 @@ int main(int argc, char **argv)
 		GetMapForRemap(matrix_affine, Map_Fx, Map_Fy);
 		GetMapForRemap(matrix_affine_r, Map_Rx, Map_Ry);
 
+        Mat map_x = Mat::zeros(front_image.size(), CV_32FC1);
+        Mat map_y = Mat::zeros(front_image.size(), CV_32FC1);
+        Mat map_x_ROI = map_x(Rect(0, 0, Map_Fx.cols, Map_Fx.rows));
+        Mat map_y_ROI = map_y(Rect(0, 0, Map_Fx.cols, Map_Fx.rows));
+        Map_Fx.copyTo(map_x_ROI);
+        Map_Fy.copyTo(map_y_ROI);
+
+        
+        imwrite("mapx.jpg", map_x);
+        imwrite("mapy.jpg", map_y);
+        
 		pa.compute_merge_matrix(frontMat, rearMat, CALIBRATOR_BOARD_SIZE, offsize_xx, offsize_yy);
 
 		front_mask1 = Mat::ones(image_size, CV_8UC1);
@@ -713,7 +724,7 @@ int main(int argc, char **argv)
 			cout << "image " << idx0++ << endl;
 	
 
-			if (idx0 >300 && idx0 < 20 * 500) 
+			if (idx0 > 0 && idx0 < 20 * 500) 
 			{
 
 				{	
@@ -731,7 +742,7 @@ int main(int argc, char **argv)
                     cout<< "process Running time  is: " << static_cast<double>(FT_en - FT_st) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
 
 					/*--------------------------------------------------------------------------------------------------------------------------------------*/
-					if (idx0 > 300 + 1) {
+					if (idx0 > 0 + 1) {
 #if 1 	
 						Mat show(Size(900, 480), CV_8UC4, Scalar(0));
 						resize(output, output, Size(300, 480));

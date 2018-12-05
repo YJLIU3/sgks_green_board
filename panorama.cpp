@@ -5,7 +5,7 @@
 #include <opencv2/xfeatures2d.hpp>
 #include<time.h> 
 #include "fftm.hpp"
-
+#include "cv_vx.h"
 
 static Mat front_before;
 static Mat front_now;
@@ -302,7 +302,8 @@ Mat Panorama::front_process(Mat front, Mat rear)
         cout << "+++++++++++++Current speed is++++++++++"<< abs( matrix.at<double>(1, 2)*0.25)*3.6 << "Km/h"<<endl;
 
         clock_t warp_st = clock();
-        warpAffine(im1, im1t, matrix, WEIGHT_BIGSIZE, INTER_NEAREST);   
+//        warpAffine(im1, im1t, matrix, WEIGHT_BIGSIZE, INTER_NEAREST);   
+        im1t = vx_Affine_RGB(im1, matrix);
         clock_t warp_en = clock();
         if(DEBUG_MSG)
         cout<< "warpAffine Running time  is: " << static_cast<double>(warp_en - warp_st) / CLOCKS_PER_SEC * 1000 << "ms" << endl;   
@@ -381,6 +382,8 @@ Mat Panorama::rear_process(Mat front, Mat rear)
         rear_before = rear;
 
 		output = im1;
+
+//        init_vx();
 	}
 	else
 	{
@@ -462,9 +465,22 @@ Mat Panorama::rear_process(Mat front, Mat rear)
         if(DEBUG_MSG)
         cout << "+++++++++++++Current speed is++++++++++"<< abs( matrix.at<double>(1, 2)*0.25)*3.6 << "Km/h"<<endl;
 
+        
+        cvtColor(im1, im1, COLOR_BGRA2BGR);
+        cvtColor(im1t, im1t, COLOR_BGRA2BGR);
         clock_t warp_st = clock();
-        warpAffine(im1, im1t, matrix, WEIGHT_BIGSIZE, INTER_NEAREST);   
+
+        im1t = vx_Affine_RGB(im1, matrix);
         clock_t warp_en = clock();
+
+        cvtColor(im1, im1, COLOR_BGR2BGRA);
+        cvtColor(im1t, im1t, COLOR_BGR2BGRA);
+
+//        warpAffine(im1, im1t, matrix, WEIGHT_BIGSIZE, INTER_NEAREST);   
+        if(DEBUG_MSG)
+        cout << im1.type() << "*-*--*-**-**-*-*" << im1t.type()<< endl;
+
+        
         if(DEBUG_MSG)
         cout<< "warpAffine Running time  is: " << static_cast<double>(warp_en - warp_st) / CLOCKS_PER_SEC * 1000 << "ms" << endl;   
 
