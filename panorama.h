@@ -39,9 +39,9 @@ public:
 	vector<Point2f> corners;
 	
 	//WEIGHT_BIGSIZE = Size(480 + offsize_a, 785 + offsize_b);
- 	Mat im1t = Mat(Size(480, 905), CV_8UC4, Scalar::all(0));
- 	Mat imMask1t = Mat(Size(480, 905), CV_8UC4, Scalar::all(0));
- 	Mat imTime1t = Mat(Size(480, 905), CV_8UC4, Scalar::all(0));
+ 	Mat im1t = Mat(Size(480, 905), CV_8UC3, Scalar::all(0));
+ 	Mat imMask1t = Mat(Size(480, 905), CV_8UC3, Scalar::all(0));
+ 	Mat imTime1t = Mat(Size(480, 905), CV_8UC3, Scalar::all(0));
 
 public:
 

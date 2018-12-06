@@ -6,134 +6,7 @@ Mat err_Mat;
 
 #define OBJCHECK(objVX) if(!(objVX)) { printf("[%s : %d] %s\n",__FILE__, __LINE__, "obj create error.");return err_Mat; }
 #define FUNCHECK(funRet) if(VX_SUCCESS!=(funRet)) { printf("[%s : %d] %s\n",__FILE__, __LINE__, "function error.");vxReleaseContext(&context);return err_Mat;}
-#define ERROR_CHECK_OBJECT(obj)                                                                 \
-    {                                                                                           \
-        vx_status status_ = vxGetStatus((vx_reference)(obj));                                   \
-        if (status_ != VX_SUCCESS)                                                              \
-        {                                                                                       \
-            printf("ERROR: failed with status = (%d) at " __FILE__ "#%d\n", status_, __LINE__); \
-            exit(0);                                                                            \
-        }                                                                                       \
-    }
-#define ERROR_CHECK_STATUS(status)                                                              \
-    {                                                                                           \
-        vx_status status_ = (status);                                                           \
-        if (status_ != VX_SUCCESS)                                                              \
-        {                                                                                       \
-            printf("ERROR: failed with status = (%d) at " __FILE__ "#%d\n", status_, __LINE__); \
-            exit(0);                                                                            \
-        }                                                                                       \
-    }
 
-
-vx_image CV2VX(Mat input_image, vx_context context)
-{
-	//    Mat input_image;
-
-	vx_df_image vx_format;
-
-	int cv_format = input_image.type();
-
-	vx_uint32 width, height;
-	width = input_image.size().width;
-	height = input_image.size().height;
-
-	vx_rectangle_t image_region;
-	image_region.start_x = 0;
-	image_region.start_y = 0;
-	image_region.end_x = width;
-	image_region.end_y = height;
-
-	vx_imagepatch_addressing_t image_layout;
-	image_layout.stride_y = input_image.step;
-
-	if (cv_format == CV_16S)
-	{
-		image_layout.stride_x = 2;
-		vx_format = VX_DF_IMAGE_S16;
-	}
-	else if (cv_format == CV_8U)
-	{
-		image_layout.stride_x = 1;
-		vx_format = VX_DF_IMAGE_U8;
-	}
-	else if (cv_format == CV_8UC3)
-	{
-		image_layout.stride_x = 3;
-		vx_format = VX_DF_IMAGE_RGB;
-	}
-	else if (cv_format == CV_8UC4)
-	{
-		image_layout.stride_x = 4;
-		vx_format = VX_DF_IMAGE_RGBX;
-	}
-
-	vx_image dst_image;
-	dst_image = vxCreateImage(context, width, height, vx_format);
-	vxCopyImagePatch(dst_image, &image_region, 0, &image_layout, input_image.data, VX_WRITE_ONLY, VX_MEMORY_TYPE_HOST);
-
-	return dst_image;
-}
-
-int VX2CV(Mat &mat, vx_image image)
-{
-
-	vx_uint32 width = 0;
-	vx_uint32 height = 0;
-	vx_df_image format = VX_DF_IMAGE_VIRT;
-	int CV_format = 0;
-	vx_size planes = 0;
-	ERROR_CHECK_STATUS(vxQueryImage(image, VX_IMAGE_WIDTH, &width, sizeof(width)));
-	ERROR_CHECK_STATUS(vxQueryImage(image, VX_IMAGE_HEIGHT, &height, sizeof(height)));
-	ERROR_CHECK_STATUS(vxQueryImage(image, VX_IMAGE_FORMAT, &format, sizeof(format)));
-	ERROR_CHECK_STATUS(vxQueryImage(image, VX_IMAGE_PLANES, &planes, sizeof(planes)));
-
-	if (format == VX_DF_IMAGE_U8)
-		CV_format = CV_8U;
-	if (format == VX_DF_IMAGE_S16)
-		CV_format = CV_16S;
-	if (format == VX_DF_IMAGE_S32)
-		CV_format = CV_32S;
-	if (format == VX_DF_IMAGE_RGB)
-		CV_format = CV_8UC3;
-	if (format == VX_DF_IMAGE_U32)
-		CV_format = CV_8UC4;
-
-	if (format != VX_DF_IMAGE_U8 && format != VX_DF_IMAGE_S16 && format != VX_DF_IMAGE_RGB && format != VX_DF_IMAGE_S32 && format != VX_DF_IMAGE_U32)
-	{
-		vxAddLogEntry((vx_reference)image, VX_ERROR_INVALID_FORMAT, "VX2CV_Image ERROR: Image type not Supported in this RELEASE\n");
-		return VX_ERROR_INVALID_FORMAT;
-	}
-	vx_rectangle_t rect = {0, 0, width, height};
-
-	mat = Mat(height, width, CV_format);
-	Mat *pMat = (Mat *)&mat;
-
-	vx_uint8 *src[4] = {NULL, NULL, NULL, NULL};
-	vx_uint32 p;
-	void *ptr = NULL;
-	vx_imagepatch_addressing_t addr[4] = {0, 0, 0, 0};
-	vx_uint32 y = 0u;
-
-	vx_map_id map_id;
-
-	for (p = 0u; (p < (int)planes); p++)
-	{
-		ERROR_CHECK_STATUS(vxMapImagePatch(image, &rect, p, &map_id, &addr[p], (void **)&src[p], VX_READ_ONLY, VX_MEMORY_TYPE_HOST, 0));
-
-		size_t len = addr[p].stride_x * (addr[p].dim_x * addr[p].scale_x) / VX_SCALE_UNITY;
-		for (y = 0; y < height; y += addr[p].step_y)
-		{
-			ptr = vxFormatImagePatchAddress2d(src[p], 0, y - rect.start_y, &addr[p]);
-			memcpy(pMat->data + y * pMat->step, ptr, len);
-		}
-	}
-
-	ERROR_CHECK_STATUS(vxUnmapImagePatch(image, map_id));
-	pMat->convertTo(mat, CV_8U);
-
-	return 0;
-}
 
 static bool _init_vx = true;
 
@@ -202,6 +75,7 @@ Mat vx_Affine_RGB(Mat input, Mat matrix){
     init_vx(context, graph);
     
     vx_uint32 SIZE = width*height*3;
+    clock_t a = clock(); 
 
     memcpy(imgData,(uchar *)input.data,sizeof(uchar)*SIZE);
 
@@ -220,7 +94,7 @@ Mat vx_Affine_RGB(Mat input, Mat matrix){
      
     FUNCHECK(vxCopyMatrix(wrap_affine_matrix , mat, VX_WRITE_ONLY, VX_MEMORY_TYPE_HOST));
 
-    clock_t a = clock(); 
+
 
     FUNCHECK(vxProcessGraph(graph));
     clock_t b = clock(); 
@@ -233,83 +107,110 @@ Mat vx_Affine_RGB(Mat input, Mat matrix){
 
 
 }
+static bool _init_vx_remap = true;
 
-Mat vx_Remap_RGB(Mat input, Mat map_x, Mat map_y, int OUTW, int OUTH){
+static vx_uint32 width_remap = 1280;
+static vx_uint32 height_remap = 720;
 
+static vx_context context_remap = NULL;
+static vx_graph graph_remap = NULL;
+static vx_image image_input_remap = NULL;
+static vx_image image_RGB_remap[3];
+static vx_image image_WRGB_remap[3];
+static vx_image OUT_remap = NULL;
+static vx_interpolation_type_e interpolation_remap[2];
+static vx_remap remap_vx;
+static Mat vx_output_remap;
+static vx_node node_remap[7];
 
-    Mat output;
-    vx_context context = vxCreateContext();
+static vx_imagepatch_addressing_t imgInfo_remap = VX_IMAGEPATCH_ADDR_INIT;
+static vx_uint8* imgData_remap = (vx_uint8*)malloc(width_remap*height_remap*3*sizeof(vx_uint8));
+static vx_rectangle_t rect_remap = {0,0,width_remap,height_remap};
+static vx_map_id map_id_remap = 0;
+static uchar * out_buff_remap = (uchar *)malloc(sizeof(uchar) * width_remap*height_remap*3);
 
-    // create graph
-    vx_graph graph = vxCreateGraph(context);
+void init_vx_remap( Mat map_x, Mat map_y)
+{
+    _init_vx_remap = false;
 
-    vx_uint32 width, height;
-    width = input.size().width;
-    height = input.size().height;
-    vx_uint32 SIZE = width*height*3;
-    ///////////////////////////////////////////////////////////////
-    vx_image image_input = vxCreateImage(context,width,height,VX_DF_IMAGE_RGB);
-    OBJCHECK(image_input);
-    output = Mat::zeros(input.size(),CV_8UC3);
-	vx_interpolation_type_e interpolation[] = {
-    VX_INTERPOLATION_NEAREST_NEIGHBOR,
-    VX_INTERPOLATION_BILINEAR};
-
-    vx_imagepatch_addressing_t imgInfo = VX_IMAGEPATCH_ADDR_INIT;
-	vx_uint8* imgData = (vx_uint8*)malloc(SIZE*sizeof(vx_uint8));
-    vx_rectangle_t rect = {0,0,width,height};
-    vx_map_id map_id = 0;
-
-    vxMapImagePatch(image_input,&rect,0,&map_id,&imgInfo,(void**)&imgData,VX_WRITE_ONLY,VX_MEMORY_TYPE_HOST,0);
-    memcpy(imgData,(uchar *)input.data,sizeof(uchar)*SIZE);
-
-    vx_remap remap = vxCreateRemap(context, width,height, width,height);
-
-
-    vx_uint32 x,y  = 0;
-
-    for( x = 0; x<width; x ++)
     {
-        for(y = 0; y<height; y ++)
-        {
-            vxSetRemapPoint(remap, x, y, map_x.at<float>(x, y), map_x.at<float>(x, y));//dstx, dsty, srcx, srcy.srcx=mapx,srcy=mapy
-        }
+        
+    vxReleaseImage(&image_input_remap);
+
+    vxReleaseImage(&image_RGB_remap[0]);
+    vxReleaseImage(&image_RGB_remap[1]);
+    vxReleaseImage(&image_RGB_remap[2]);
+    vxReleaseImage(&image_WRGB_remap[0]);
+    vxReleaseImage(&image_WRGB_remap[1]);
+    vxReleaseImage(&image_WRGB_remap[2]);
+
+    vxReleaseGraph(&graph_remap);
+    vxReleaseContext(&context_remap);
+    
+    }
+
+    vx_output_remap = Mat::zeros(Size(width_remap, height_remap),CV_8UC3);
+    context_remap = vxCreateContext();
+    graph_remap = vxCreateGraph(context_remap);
+    image_input_remap = vxCreateImage(context_remap,width_remap,height_remap,VX_DF_IMAGE_RGB);
+    OUT_remap = vxCreateImage(context_remap,width_remap,height_remap,VX_DF_IMAGE_RGB);
+    
+    remap_vx = vxCreateRemap(context_remap, width_remap,height_remap, width_remap,height_remap);
+
+    for(int i = 0; i < 3; i++)
+    {
+        image_RGB_remap[i] = vxCreateImage(context_remap, width_remap, height_remap, VX_DF_IMAGE_U8);
+        image_WRGB_remap[i] = vxCreateImage(context_remap, width_remap, height_remap, VX_DF_IMAGE_U8);
     }
 
 
-	vx_image OUT = vxCreateImage(context,height,width,VX_DF_IMAGE_RGB);
-	OBJCHECK(OUT);
+    interpolation_remap[0] = VX_INTERPOLATION_NEAREST_NEIGHBOR;
+    interpolation_remap[1] = VX_INTERPOLATION_BILINEAR;
 
-    vx_image image_RGB[3] =
+    vx_uint32 x,y  = 0;
+
+    for( x = 0; x<width_remap; x ++)
     {
-        vxCreateImage(context, width, height, VX_DF_IMAGE_U8),
-        vxCreateImage(context, width, height, VX_DF_IMAGE_U8),
-        vxCreateImage(context, width, height, VX_DF_IMAGE_U8),
-    };
+        for(y = 0; y<height_remap; y ++)
+        {
+            if(x < map_x.cols && y < map_x.rows)
+                vxSetRemapPoint(remap_vx, x, y, map_x.at<float>(y, x), map_y.at<float>(y, x));//dstx, dsty, srcx, srcy.srcx=mapx,srcy=mapy
+            else
+                vxSetRemapPoint(remap_vx, x, y, 0, 0);//dstx, dsty, srcx, srcy.srcx=mapx,srcy=mapy              
+        }
+    }
 
-    vx_image image_WRGB[3] =
-    {
-        vxCreateImage(context, width, height, VX_DF_IMAGE_U8),
-        vxCreateImage(context, width, height, VX_DF_IMAGE_U8),
-        vxCreateImage(context, width, height, VX_DF_IMAGE_U8),
-    };
-
-    vx_node node[] = {
-        vxChannelExtractNode(graph, image_input, VX_CHANNEL_R, image_RGB[0]),
-        vxChannelExtractNode(graph, image_input, VX_CHANNEL_G, image_RGB[1]),
-        vxChannelExtractNode(graph, image_input, VX_CHANNEL_B, image_RGB[2]),
-        vxRemapNode(graph, image_RGB[0], remap, interpolation[0], image_WRGB[0]),
-        vxRemapNode(graph, image_RGB[1], remap, interpolation[0], image_WRGB[1]),
-        vxRemapNode(graph, image_RGB[2], remap, interpolation[0], image_WRGB[2]),
-        vxChannelCombineNode(graph, image_WRGB[0], image_WRGB[1], image_WRGB[2], NULL, OUT),
-    };
-    FUNCHECK(vxVerifyGraph(graph));
-    FUNCHECK(vxProcessGraph(graph));
-
-    VX2CV(output, OUT);
-
+    node_remap[0] = vxChannelExtractNode(graph_remap, image_input_remap, VX_CHANNEL_R, image_RGB_remap[0]);
+    node_remap[1] = vxChannelExtractNode(graph_remap, image_input_remap, VX_CHANNEL_G, image_RGB_remap[1]);
+    node_remap[2] = vxChannelExtractNode(graph_remap, image_input_remap, VX_CHANNEL_B, image_RGB_remap[2]);
+    node_remap[3] = vxRemapNode(graph_remap, image_RGB_remap[0], remap_vx, interpolation_remap[1], image_WRGB_remap[0]);
+    node_remap[4] = vxRemapNode(graph_remap, image_RGB_remap[1], remap_vx, interpolation_remap[1], image_WRGB_remap[1]);
+    node_remap[5] = vxRemapNode(graph_remap, image_RGB_remap[2], remap_vx, interpolation_remap[1], image_WRGB_remap[2]);
+    node_remap[6] = vxChannelCombineNode(graph_remap, image_WRGB_remap[0], image_WRGB_remap[1], image_WRGB_remap[2], NULL, OUT_remap);
     
-    return output;
+    vxMapImagePatch(image_input_remap,&rect_remap,0,&map_id_remap,&imgInfo_remap,(void**)&imgData_remap,VX_WRITE_ONLY,VX_MEMORY_TYPE_HOST,0);
+    vxMapImagePatch(OUT_remap,&rect_remap,0,&map_id_remap,&imgInfo_remap,(void**)&out_buff_remap,VX_READ_ONLY,VX_MEMORY_TYPE_HOST,0);
+
+}
+
+
+Mat vx_Remap_RGB(Mat input, bool Revers){
+
+    vx_uint32 SIZE = width_remap*height_remap*3;
+    memcpy(imgData_remap,(uchar *)input.data,sizeof(uchar)*SIZE);
+
+
+//  FUNCHECK(vxProcessGraph(graph_remap));
+    cout << vxProcessGraph(graph_remap) << "########"<<endl;
+
+    vx_output_remap.data = (uchar *)out_buff_remap;
+
+    if(!Revers)
+        vx_output_remap = vx_output_remap(Rect(0, 0, 260, 180));
+    else
+        vx_output_remap = vx_output_remap(Rect(0, 0, 260, 180));
+    
+    return vx_output_remap;
 
 }
 

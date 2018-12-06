@@ -27,12 +27,12 @@ static Mat matrix;
 static Mat expand_roi;
 static Mat merge_roi;   
 extern Mat frontimage, rearimage;
-static Mat output(Size_BG, CV_8UC4);
+static Mat output(Size_BG, CV_8UC3);
 static Mat Highlander;
 
 
-static Mat front(image_size,  CV_8UC4, Scalar::all(0));
-static Mat rear(image_size, CV_8UC4, Scalar::all(0));
+static Mat front(image_size,  CV_8UC3, Scalar::all(0));
+static Mat rear(image_size, CV_8UC3, Scalar::all(0));
 
 
 static Mat im1;
@@ -361,6 +361,9 @@ Mat Panorama::front_process(Mat front, Mat rear)
 
 Mat Panorama::rear_process(Mat front, Mat rear)
 {
+    if(DEBUG_MSG)
+          cout << front.type() << "*-*--*-**-**-*-*" << rear.type()<< endl;
+    
     if (bypast_cont > 23)
 		bypast_cont = 0;
 
@@ -368,7 +371,7 @@ Mat Panorama::rear_process(Mat front, Mat rear)
 	{
 		idx = 1;
 
-
+    
 		expand(front, im1);
 		mergeRearMat(rear, im1);
 
@@ -466,19 +469,20 @@ Mat Panorama::rear_process(Mat front, Mat rear)
         cout << "+++++++++++++Current speed is++++++++++"<< abs( matrix.at<double>(1, 2)*0.25)*3.6 << "Km/h"<<endl;
 
         
-        cvtColor(im1, im1, COLOR_BGRA2BGR);
-        cvtColor(im1t, im1t, COLOR_BGRA2BGR);
+//        cvtColor(im1, im1, COLOR_BGRA2BGR);
+//        cvtColor(im1t, im1t, COLOR_BGRA2BGR);
         clock_t warp_st = clock();
+        if(DEBUG_MSG)
+              cout << im1.type() << "*-*--*-**-**-*-*" << im1t.type()<< endl;
 
         im1t = vx_Affine_RGB(im1, matrix);
         clock_t warp_en = clock();
 
-        cvtColor(im1, im1, COLOR_BGR2BGRA);
-        cvtColor(im1t, im1t, COLOR_BGR2BGRA);
+//        cvtColor(im1, im1, COLOR_BGR2BGRA);
+//        cvtColor(im1t, im1t, COLOR_BGR2BGRA);
 
 //        warpAffine(im1, im1t, matrix, WEIGHT_BIGSIZE, INTER_NEAREST);   
-        if(DEBUG_MSG)
-        cout << im1.type() << "*-*--*-**-**-*-*" << im1t.type()<< endl;
+      
 
         
         if(DEBUG_MSG)

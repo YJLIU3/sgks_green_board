@@ -516,8 +516,21 @@ Point2d phaseCorrelateRes(InputArray _src1, InputArray _src2)
     //执行步骤2，分别对两幅图像取傅立叶变换  
     clock_t a = clock();
 
-    dft(padded1, FFT1, DFT_REAL_OUTPUT);  
-    dft(padded2, FFT2, DFT_REAL_OUTPUT);
+	Mat planes1[] = { Mat_<float>(padded1), Mat::zeros(padded1.size(),CV_32F) };
+	Mat planes2[] = { Mat_<float>(padded2), Mat::zeros(padded2.size(),CV_32F) };
+	Mat complexI1, complexI2;
+	merge(planes1, 2, complexI1); 	//将planes融合合并成一个多通道数组complexI
+	merge(planes2, 2, complexI2);
+
+	dft(complexI1, FFT1, DFT_REAL_OUTPUT);
+	dft(complexI2, FFT2, DFT_REAL_OUTPUT);
+
+ //   dft(padded1, FFT1, DFT_REAL_OUTPUT);  
+  //  dft(padded2, FFT2, DFT_REAL_OUTPUT);
+     split(complexI1, planes1);
+     split(complexI2, planes2);
+     FFT1 = planes1[0].clone(); 
+     FFT2 = planes2[0].clone();
 
     clock_t b = clock();
     
@@ -586,12 +599,12 @@ Mat LogPolarFFTTemplateMatch(Mat im0, Mat im1, double canny_threshold1, double c
     im1.convertTo(im1, CV_32FC1, 1.0 / 255.0);
 
     Mat im1_t = Mat::zeros(im1.size(),im1.type());
-    Mat im1_Rec = Mat(im1, Rect( im1.cols*0.1, 0, im1.cols*0.9, im1.rows*0.7));
-    Mat im1_t_Rec = Mat(im1_t, Rect( im1_t.cols*0.1, 0, im1_t.cols*0.9, im1_t.rows*0.7));
+    Mat im1_Rec = Mat(im1, Rect( im1.cols*0.05, 0, im1.cols*0.95, im1.rows*0.8));
+    Mat im1_t_Rec = Mat(im1_t, Rect( im1_t.cols*0.05, 0, im1_t.cols*0.95, im1_t.rows*0.8));
     im1_Rec.copyTo(im1_t_Rec);
 
     clock_t a = clock();
-    Point2d tr = phaseCorrelateRes(im1_t, im0);
+    Point2d tr = phaseCorrelate(im1, im0);
     clock_t b = clock();
     if(DEBUG_MSG)
         cout<< "PhaseCorrelate time  is: " << static_cast<double>(b - a) / CLOCKS_PER_SEC * 1000 << "ms" << endl;   

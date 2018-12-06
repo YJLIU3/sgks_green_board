@@ -5,13 +5,14 @@
 #include "mpi/mpi_lib.h"
 #include "gpu2d.h"
 #include "omp.h"
+#include "cv_vx.h"
 
 static Mat Map_Fx = Mat(image_size, CV_32FC1);
 static Mat Map_Fy = Mat(image_size, CV_32FC1);
 static Mat Map_Rx = Mat(image_size, CV_32FC1);
 static Mat Map_Ry = Mat(image_size, CV_32FC1);
-static Mat front_image(720, 1280, CV_8UC4);
-static Mat rear_image(720, 1280, CV_8UC4);
+static Mat front_image(Size(1280, 720), CV_8UC3);
+static Mat rear_image(Size(1280, 720), CV_8UC3);
 
 #define Size_Out_AGRB 640*320*4
 
@@ -30,9 +31,9 @@ using namespace cv;
 bool init_ = true;
 static Panorama pa;
 
-static Mat front_trs(image_size, CV_8UC4, Scalar::all(0));
-static Mat rear_trs(image_size, CV_8UC4, Scalar::all(0));
-static Mat out= Mat(Size(space_x, space_y), CV_8UC4, Scalar::all(0));
+static Mat front_trs(image_size, CV_8UC3, Scalar::all(0));
+static Mat rear_trs(image_size, CV_8UC3, Scalar::all(0));
+static Mat out= Mat(Size(space_x, space_y), CV_8UC3, Scalar::all(0));
 
 
 gctUINT			nLCDWidth = 480;
@@ -675,17 +676,14 @@ int main(int argc, char **argv)
 		GetMapForRemap(matrix_affine, Map_Fx, Map_Fy);
 		GetMapForRemap(matrix_affine_r, Map_Rx, Map_Ry);
 
-        Mat map_x = Mat::zeros(front_image.size(), CV_32FC1);
-        Mat map_y = Mat::zeros(front_image.size(), CV_32FC1);
-        Mat map_x_ROI = map_x(Rect(0, 0, Map_Fx.cols, Map_Fx.rows));
-        Mat map_y_ROI = map_y(Rect(0, 0, Map_Fx.cols, Map_Fx.rows));
-        Map_Fx.copyTo(map_x_ROI);
-        Map_Fy.copyTo(map_y_ROI);
-
-        
-        imwrite("mapx.jpg", map_x);
-        imwrite("mapy.jpg", map_y);
-        
+        Mat testvxremap = imread("F.bmp");
+        Mat testvxremap1 = imread("B.bmp");
+        init_vx_remap( Map_Fx, Map_Fy);
+        Mat outvxremap = vx_Remap_RGB(testvxremap);
+        imwrite("debug/outvxremap.jpg", outvxremap);
+        init_vx_remap( Map_Rx, Map_Ry);
+        Mat outvxremap1 = vx_Remap_RGB(testvxremap1);
+        imwrite("debug/outvxremap_r.jpg", outvxremap1);
 		pa.compute_merge_matrix(frontMat, rearMat, CALIBRATOR_BOARD_SIZE, offsize_xx, offsize_yy);
 
 		front_mask1 = Mat::ones(image_size, CV_8UC1);
@@ -712,56 +710,47 @@ int main(int argc, char **argv)
 	if (front_cap.isOpened() && rear_cap.isOpened())
 	{
 		
-		front_cap >> frontimage;
-		rear_cap >> rearimage;
+		front_cap >> front_image;
+		rear_cap >> rear_image;
 
-		Mat front_trs(front_image.size(), CV_8UC4, Scalar::all(0));
-		Mat rear_trs(rear_image.size(), CV_8UC4, Scalar::all(0));
+		Mat front_trs(front_image.size(), CV_8UC3, Scalar::all(0));
+		Mat rear_trs(rear_image.size(), CV_8UC3, Scalar::all(0));
 
-		while (frontimage.data && rearimage.data)
+		while (front_image.data && rear_image.data)
 		{
 			clock_t tc3;	
 			cout << "image " << idx0++ << endl;
 	
 
-			if (idx0 > 0 && idx0 < 20 * 500) 
+			if (idx0 > 350 && idx0 < 20 * 500) 
 			{
 
 				{	
-					cvtColor(frontimage, front_image, COLOR_BGR2BGRA);				
-					cvtColor(rearimage, rear_image, COLOR_BGR2BGRA);
+//					cvtColor(frontimage, front_image, COLOR_BGR2BGRA);				
+//					cvtColor(rearimage, rear_image, COLOR_BGR2BGRA);
 
                     clock_t FT_st = clock();
                     
-					output = av_merge_image(front_image, rear_image, 1);
+					out = av_merge_image(front_image, rear_image, 1);
+                    cvtColor(out, output, COLOR_BGR2BGRA);
 
-                    if(DEBUG_MSG_IMG)
+                    if(!DEBUG_MSG_IMG)
                         imwrite("debug/output.png", output);
                     clock_t FT_en = clock();
                     if(DEBUG_MSG)
                     cout<< "process Running time  is: " << static_cast<double>(FT_en - FT_st) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
 
 					/*--------------------------------------------------------------------------------------------------------------------------------------*/
-					if (idx0 > 0 + 1) {
+					if (idx0 > 350 + 1) {
 #if 1 	
 						Mat show(Size(900, 480), CV_8UC4, Scalar(0));
-						resize(output, output, Size(300, 480));
-						resize(front_image, front_image,Size(300,100));
-						resize(rear_image, rear_image,Size(300,100));
-						//cvtColor(output, output, COLOR_BGRA2BGR);
-						front_image.copyTo(show(Rect(0, 200, 300, 100)));
-						output.copyTo(show(Rect(300, 0, 300, 480)));
-						rear_image.copyTo(show(Rect(600, 200, 300, 100)));
-						putText(show, "Front_Image", Point(50,50), FONT_HERSHEY_COMPLEX,1,Scalar(0, 255, 255), 2, 8, 0);
-						putText(show, "Back_Image", Point(650,50), FONT_HERSHEY_COMPLEX,1,Scalar(0, 255, 255), 2, 8, 0);
-						resize(show, dst, dst.size());
+						resize(output, output, Size(900, 480));
+						show = output;
                         if(DEBUG_MSG_IMG)
                             imwrite("debug/show.png", dst);
 						// cvtColor(dst, dst, COLOR_BGRA2BGR);
 						// abMatBGR2ARGB(dst, show_img);
-						cout <<"****-----show-------****" << endl;
-						ShowImageToLCD(dst);
-                        cout <<"****-----show-------****" << endl;
+						ShowImageToLCD(show);
 #endif
 /*--------------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -769,8 +758,8 @@ int main(int argc, char **argv)
 					
 				}
 			}
-			front_cap >> frontimage;
-			rear_cap >> rearimage;
+			front_cap >> front_image;
+			rear_cap >> rear_image;
 			
 		}
 		clock_t total_end = clock();
@@ -780,14 +769,23 @@ int main(int argc, char **argv)
 	}
 	return 0;
 }
-
+static bool _init_vx_remap = true;
+static bool Revers_Bak = false;
 Mat av_merge(Mat front_image, Mat rear_image, bool Reversing)
 {
 	Mat out;
     if(!Reversing)
     {
+        if(_init_vx_remap || Revers_Bak != Reversing)
+        {
+            cout << "###########init_remap_vx##############"<<endl;
+            init_vx_remap(Map_Fx, Map_Fy);
+            _init_vx_remap = false;
+        }
+        Revers_Bak = Reversing;
         clock_t end_remap = clock();
-        remap(front_image, front_trs, Map_Fx, Map_Fy, INTER_NEAREST, BORDER_CONSTANT);
+//        remap(front_image, front_trs, Map_Fx, Map_Fy, INTER_NEAREST, BORDER_CONSTANT);
+        front_trs = vx_Remap_RGB(front_image, false);
         if(front_trs.size() != image_size)
     	{
             if(DEBUG_MSG)
@@ -804,8 +802,16 @@ Mat av_merge(Mat front_image, Mat rear_image, bool Reversing)
     }
     else
     {
+        if(_init_vx_remap || Revers_Bak != Reversing)
+        {
+            cout << "###########init_remap_vx##############"<<endl;
+            init_vx_remap(Map_Fx, Map_Fy);
+            _init_vx_remap = false;
+        }
+        Revers_Bak = Reversing;
         clock_t end_remap = clock();
-        remap(rear_image, rear_trs, Map_Rx, Map_Ry, INTER_NEAREST, BORDER_CONSTANT);
+//        remap(rear_image, rear_trs, Map_Rx, Map_Ry, INTER_NEAREST, BORDER_CONSTANT);
+        rear_trs = vx_Remap_RGB(rear_image, true);
         if(front_trs.size() != image_size)
     	{
             if(DEBUG_MSG)
